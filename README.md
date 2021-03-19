@@ -32,4 +32,5 @@ I use the following cron entry at /etc/cron.d/send_update_notifications:
 ## Credits
 
 Written by Rick Harrison : https://www.fortybelowzero.com ( @sovietuk on twitter )
+
 Modified by Unai Goikoetxeta
