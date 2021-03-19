@@ -22,7 +22,9 @@ Place the script somewhere suitable - i.e. /usr/local/bin/notify_updates
 Change the configuration settings in the script. If currently expects SLACK_HOOK_URL to be an environment variable on your server, but you can uncomment and define it in the script if you so wish. Make a note of the frequence (default is every 15 mins).
 
 Set up the script as a cron job. Note that the cron frequency needs to match the frequency setting in the script config.
-I use the following cron entry:
+
+I use the following cron entry at /etc/cron.d/send_update_notifications:
+
 ```
 */15 * * * * root  /bin/bash /usr/local/bin/notify_updates > /dev/null 2>&1
 ```
