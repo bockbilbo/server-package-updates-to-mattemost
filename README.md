@@ -18,7 +18,7 @@ Additionally, you will need to have cron & curl on your system.
 
 Place either script somewhere suitable - i.e. /usr/local/bin/notify_updates
 
-Change the configuration settings in the script. If currently expects MM_HOOK_URL or HANGOUTS_HOOK_URL to be an environment variable on your server, but you can uncomment and define it in the script if you so wish. Make a note of the frequence (default is every 15 mins).
+Change the configuration settings in the script. If currently expects MM_HOOK_URL or GCHAT_HOOK_URL to be an environment variable on your server, but you can uncomment and define it in the script if you so wish. Make a note of the frequence (default is every 15 mins).
 
 Set up the script as a cron job. Note that the cron frequency needs to match the frequency setting in the script config.
 
