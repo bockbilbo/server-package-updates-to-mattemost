@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script to notify Mattermost/Slack of latest package changes in Ubuntu or
+# Script to notify Mattermost of latest package changes in Ubuntu or
 # CentOS.
 #
 # Based on original work by Rick Harrison available at:
@@ -13,26 +13,27 @@
 
 # ==== CONFIGURATION =========================================================
 
-# How often you are running this in cron (must match the same frequecy. This string needs to be in the format unix date command can parse, eg:
+# How often you are running this in cron (must match the same frequency. This string needs to be in the format unix date command can parse, eg:
 # 1 hour
 # 2 hours
 # 15 minutes
 FREQUENCY="15 minutes"
 
-# Slack Hook Url to post the slack message to. Commented out here as I set it on the server as an enviroment variable, you could either do that or
-# uncomment and add your own Slack API Hook url here:
-# SLACK_HOOK_URL="https://hooks.slack.com/services/foo/bar"
+# Mattermost Hook Url to post the message to. Commented out here as I set it on the server as an environment variable, you could either do that or
+# uncomment and add your own Mattermost API Hook url here:
+# MM_HOOK_URL="https://mattermost.domain.gbl/hooks/XXXXXXXXXXXX"
 
-# Other Slack config settings.
-SLACK_CHANNEL_NAME="#server-updates"
-SLACK_POST_THUMBNAIL_UBUNTU="https://assets.ubuntu.com/v1/29985a98-ubuntu-logo32.png"
-SLACK_POST_THUMBNAIL_CENTOS="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/CentOS_logo.svg/500px-CentOS_logo.svg.png"
-SLACK_POST_THUMBNAIL=$SLACK_POST_THUMBNAIL_UBUNTU
 
-SLACK_POST_USERNAME="update-notifier"
-SLACK_POST_USERNAME_ICON="https://icons-for-free.com/download-icon-refresh+reload+update+icon-1320191166843452904_512.png"
+# Other Mattermost config settings.
+MM_CHANNEL_NAME="#server-updates"
+MM_POST_THUMBNAIL_UBUNTU="https://assets.ubuntu.com/v1/29985a98-ubuntu-logo32.png"
+MM_POST_THUMBNAIL_CENTOS="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/CentOS_logo.svg/500px-CentOS_logo.svg.png"
+MM_POST_THUMBNAIL=$MM_POST_THUMBNAIL_UBUNTU
 
-# Name of the server to use in the slack message title. By default below we're using the servers' own hostname, feel free to swap it to a
+MM_POST_USERNAME="update-notifier"
+MM_POST_USERNAME_ICON="https://icons-for-free.com/download-icon-refresh+reload+update+icon-1320191166843452904_512.png"
+
+# Name of the server to use in the mattermost message title. By default below we're using the servers' own hostname, feel free to swap it to a
 # string if theres something you'd rather use to identify the server instead.
 SERVERNAME=$(hostname)
 
@@ -65,26 +66,26 @@ NOWTIME=$(date -d 'NOW'  +"%F")
 # --------------- DEAL WITH PACKAGES INSTALLED IF LINUX DISTRIBUTION IS REDHAT OR CENTOS ------------------
 
 if [[ ${DISTRO,,} == *"redhat"* ]] || [[ ${DISTRO,,} == *"centos"* ]] ; then
-    SLACK_POST_THUMBNAIL=$SLACK_POST_THUMBNAIL_CENTOS
+    MM_POST_THUMBNAIL=$MM_POST_THUMBNAIL_CENTOS
     rpm -qa --last | head -30 | while read -a linearray ; do
         PACKAGE=${linearray[0]}
         DATETIMESTR="${linearray[1]} ${linearray[2]} ${linearray[3]} ${linearray[4]} ${linearray[5]} ${linearray[6]}"
         INSTALLTIME=$(date --date="$DATETIMESTR" +"%s")
         if [ "$INSTALLTIME" -ge "$LASTFREQUENCY" ]; then
-            echo "$PACKAGE    ($DATETIMESTR)\n" >> /tmp/package-updates-slack-announce.txt
+            echo "$PACKAGE    ($DATETIMESTR)\n" >> /tmp/package-updates-mattermost-announce.txt
         fi
     done
 
 # --------------- DEAL WITH PACKAGES INSTALLED IF LINUX DISTRIBUTION IS UBUNTU ------------------
 
 elif [[ ${DISTRO,,} == *"ubuntu"* ]] ; then
-    SLACK_POST_THUMBNAIL=$SLACK_POST_THUMBNAIL_UBUNTU
+    MM_POST_THUMBNAIL=$MM_POST_THUMBNAIL_UBUNTU
     cat /var/log/dpkg.log | grep "\ installed\ " | tail -n 30 | while read -a linearray ; do
         PACKAGE="${linearray[3]} ${linearray[4]} ${linearray[5]}"
         DATETIMESTR="${linearray[0]} ${linearray[1]}"
         INSTALLTIME=$(date --date="$DATETIMESTR" +"%s")
         if [ "$INSTALLTIME" -ge "$LASTFREQUENCY" ]; then
-            echo "$PACKAGE    ($DATETIMESTR)\n" >> /tmp/package-updates-slack-announce.txt
+            echo "$PACKAGE    ($DATETIMESTR)\n" >> /tmp/package-updates-mattermost-announce.txt
         fi
     done
 
@@ -93,11 +94,11 @@ else
     echo "ERROR: Untested/unsupported linux distro - Centos/Redhat/Ubuntu currently supported, feel free to amend for other distros and submit a PR."
 fi
 
-# --------------- IF PACKAGED WERE INSTALLED (THERES A TEMPORARY FILE WITH THEM LISTED IN IT) THEN SEND A SLACK NOTIFICATION. -------------
-if [ -f /tmp/package-updates-slack-announce.txt ]; then
+# --------------- IF PACKAGED WERE INSTALLED (THERES A TEMPORARY FILE WITH THEM LISTED IN IT) THEN SEND A MATTERMOST NOTIFICATION. -------------
+if [ -f /tmp/package-updates-mattermost-announce.txt ]; then
 
-    echo "$NOWTIME - notifying updates to slack..."
-    INSTALLATIONS=$(cat /tmp/package-updates-slack-announce.txt)
-    curl -X POST --data-urlencode 'payload={"channel": "'"$SLACK_CHANNEL_NAME"'", "username": "'"$SLACK_POST_USERNAME"'", "icon_url": "'"$SLACK_POST_USERNAME_ICON"'", "attachments": [ { "fallback": "'"$INSTALLATIONS"'", "color": "good", "title": "UPDATES APPLIED ON '"$SERVERNAME"'", "text": "Packages Updated:\n\n'"$INSTALLATIONS"'", "thumb_url": "'"$SLACK_POST_THUMBNAIL"'" } ] }' $SLACK_HOOK_URL
-    rm -f /tmp/package-updates-slack-announce.txt
+    echo "$NOWTIME - notifying updates to mattermost..."
+    INSTALLATIONS=$(cat /tmp/package-updates-mattermost-announce.txt)
+    curl -X POST --data-urlencode 'payload={"channel": "'"$MM_CHANNEL_NAME"'", "username": "'"$MM_POST_USERNAME"'", "icon_url": "'"$MM_POST_USERNAME_ICON"'", "attachments": [ { "fallback": "'"$INSTALLATIONS"'", "color": "good", "title": "UPDATES APPLIED ON '"$SERVERNAME"'", "text": "Packages Updated:\n\n'"$INSTALLATIONS"'", "thumb_url": "'"$MM_POST_THUMBNAIL"'" } ] }' $MM_HOOK_URL
+    rm -f /tmp/package-updates-mattermost-announce.txt
 fi
