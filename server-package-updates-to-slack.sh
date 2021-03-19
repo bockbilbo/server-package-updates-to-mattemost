@@ -1,21 +1,15 @@
 #!/bin/bash
+# Script to notify Mattermost/Slack of latest package changes in Ubuntu or
+# CentOS.
 #
-# Monitoring of what packages have been updated/installed on a server automatically; Notification to a slack channel of whats been changed.
-# We use this @GatenbySanderson to track what is automatically being updated on a server by cron'd yum && apt-get updates, they get posted
-# to a monitored slack channel with the name of the server and what packages have been installed - we then decide if/when to schedule restarts
-# of services or the server itself.
-# 
+# Based on original work by Rick Harrison available at:
+# https://github.com/fortybelowzero/server-package-updates-to-slack
+#
 # Setup:
-# - Change values in the configuration section below
-# - Add this as a cron-job - we run it every 15 minutes with this cron entry as root:
-#   */15 * * * * /bin/bash /opt/fortybelowzero/server-package-updates-to-slack/server-package-updates-to-slack.sh >> /var/log/server-package-updates-to-slack.log 2>&1
-# 
-#   (assuming you place the script at /opt/fortybelowzero/server-package-updates-to-slack/server-package-updates-to-slack.sh )
+#  - Change values in the configuration section below
+#  - Add this as a cron-job - we run it every 15 minutes with this cron entry as root:
+#    */15 * * * * root  /bin/bash /usr/local/bin/notify_updates > /dev/null 2>&1
 #
-# Author: Rick Harrison; 
-# Version: 1.0.1  -- 6th January 2018
-#
-# Note: My bash-fu is a bit rusty - feel free to propose improvements to how this works!
 
 # ==== CONFIGURATION =========================================================
 
@@ -31,10 +25,14 @@ FREQUENCY="15 minutes"
 
 # Other Slack config settings.
 SLACK_CHANNEL_NAME="#server-updates"
-SLACK_POST_THUMBNAIL="https://i.imgur.com/3J4gkcPl.png"
-SLACK_POST_USERNAME="updates-bot"
+SLACK_POST_THUMBNAIL_UBUNTU="https://assets.ubuntu.com/v1/29985a98-ubuntu-logo32.png"
+SLACK_POST_THUMBNAIL_CENTOS="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/CentOS_logo.svg/500px-CentOS_logo.svg.png"
+SLACK_POST_THUMBNAIL=$SLACK_POST_THUMBNAIL_UBUNTU
 
-# Name of the server to use in the slack message title. By default below we're using the servers' own hostname, feel free to swap it to a 
+SLACK_POST_USERNAME="update-notifier"
+SLACK_POST_USERNAME_ICON="https://icons-for-free.com/download-icon-refresh+reload+update+icon-1320191166843452904_512.png"
+
+# Name of the server to use in the slack message title. By default below we're using the servers' own hostname, feel free to swap it to a
 # string if theres something you'd rather use to identify the server instead.
 SERVERNAME=$(hostname)
 
@@ -67,6 +65,7 @@ NOWTIME=$(date -d 'NOW'  +"%F")
 # --------------- DEAL WITH PACKAGES INSTALLED IF LINUX DISTRIBUTION IS REDHAT OR CENTOS ------------------
 
 if [[ ${DISTRO,,} == *"redhat"* ]] || [[ ${DISTRO,,} == *"centos"* ]] ; then
+    SLACK_POST_THUMBNAIL=$SLACK_POST_THUMBNAIL_CENTOS
     rpm -qa --last | head -30 | while read -a linearray ; do
         PACKAGE=${linearray[0]}
         DATETIMESTR="${linearray[1]} ${linearray[2]} ${linearray[3]} ${linearray[4]} ${linearray[5]} ${linearray[6]}"
@@ -79,7 +78,7 @@ if [[ ${DISTRO,,} == *"redhat"* ]] || [[ ${DISTRO,,} == *"centos"* ]] ; then
 # --------------- DEAL WITH PACKAGES INSTALLED IF LINUX DISTRIBUTION IS UBUNTU ------------------
 
 elif [[ ${DISTRO,,} == *"ubuntu"* ]] ; then
-
+    SLACK_POST_THUMBNAIL=$SLACK_POST_THUMBNAIL_UBUNTU
     cat /var/log/dpkg.log | grep "\ installed\ " | tail -n 30 | while read -a linearray ; do
         PACKAGE="${linearray[3]} ${linearray[4]} ${linearray[5]}"
         DATETIMESTR="${linearray[0]} ${linearray[1]}"
@@ -88,8 +87,8 @@ elif [[ ${DISTRO,,} == *"ubuntu"* ]] ; then
             echo "$PACKAGE    ($DATETIMESTR)\n" >> /tmp/package-updates-slack-announce.txt
         fi
     done
-    
-# --------------- OTHER LINUX DISTROS ARE UNTESTED - ABORT. ------------------    
+
+# --------------- OTHER LINUX DISTROS ARE UNTESTED - ABORT. ------------------
 else
     echo "ERROR: Untested/unsupported linux distro - Centos/Redhat/Ubuntu currently supported, feel free to amend for other distros and submit a PR."
 fi
@@ -99,6 +98,6 @@ if [ -f /tmp/package-updates-slack-announce.txt ]; then
 
     echo "$NOWTIME - notifying updates to slack..."
     INSTALLATIONS=$(cat /tmp/package-updates-slack-announce.txt)
-    curl -X POST --data-urlencode 'payload={"channel": "'"$SLACK_CHANNEL_NAME"'", "username": "'"$SLACK_POST_USERNAME"'", "attachments": [ { "fallback": "'"$INSTALLATIONS"'", "color": "good", "title": "UPDATES APPLIED ON '"$SERVERNAME"'", "text": "<!channel> Packages Updated:\n\n'"$INSTALLATIONS"'", "thumb_url": "'"$SLACK_POST_THUMBNAIL"'" } ] }' $SLACK_HOOK_URL
+    curl -X POST --data-urlencode 'payload={"channel": "'"$SLACK_CHANNEL_NAME"'", "username": "'"$SLACK_POST_USERNAME"'", "icon_url": "'"$SLACK_POST_USERNAME_ICON"'", "attachments": [ { "fallback": "'"$INSTALLATIONS"'", "color": "good", "title": "UPDATES APPLIED ON '"$SERVERNAME"'", "text": "Packages Updated:\n\n'"$INSTALLATIONS"'", "thumb_url": "'"$SLACK_POST_THUMBNAIL"'" } ] }' $SLACK_HOOK_URL
     rm -f /tmp/package-updates-slack-announce.txt
 fi
